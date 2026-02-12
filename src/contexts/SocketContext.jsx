@@ -10,7 +10,7 @@ export function SocketProvider({ children }) {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    const s = io('https://srit-campusconnect-update.onrender.com', {
+    const s = io('http://localhost:5000', {
       auth: { token },
       withCredentials: true,
     });

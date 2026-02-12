@@ -12,17 +12,18 @@ export default function LostFound() {
   const [openModal, setOpenModal] = useState(false);
   const { profile } = useAuth();
 
-  useEffect(() => {
-    async function loadItems() {
-      try {
-        const res = await API.get('/lost-found');
-        setItems(res.data);
-      } catch (err) {
-        console.error('Failed to load lost-found items', err);
-      } finally {
-        setLoading(false);
-      }
+  async function loadItems() {
+    try {
+      const res = await API.get('/lost-found');
+      setItems(res.data || []);
+    } catch (err) {
+      console.error('Failed to load lost-found items', err);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     loadItems();
   }, []);
 
@@ -63,17 +64,35 @@ export default function LostFound() {
               </p>
 
               <p className="text-sm text-gray-600 mt-1">
-                Status: {i.found ? 'Found' : 'Lost'}
+                Type: {i.found ? 'Found Item' : 'Lost Item'}
               </p>
 
               <p className="text-sm text-gray-600">
-                Location: {i.location}
+                Location: {i.location || 'Not specified'}
               </p>
 
-              {!i.approved && (
-                <span className="inline-block text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded mt-2">
-                  Pending Approval
-                </span>
+              <span
+                className={`inline-block text-xs px-2 py-1 rounded mt-2 ${
+                  i.approved
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-yellow-100 text-yellow-700'
+                }`}
+              >
+                {i.approved ? 'Approved' : 'Pending Approval'}
+              </span>
+
+              {profile?.role === 'admin' && !i.approved && (
+                <div className="mt-3">
+                  <Button
+                    onClick={async () => {
+                      await API.post(`/lost-found/${i._id}/approve`);
+                      loadItems();
+                    }}
+                    className="bg-green-600 text-white"
+                  >
+                    Approve
+                  </Button>
+                </div>
               )}
 
               <div className="text-xs text-gray-400 mt-3">
@@ -87,7 +106,7 @@ export default function LostFound() {
       <CreateLostFoundModal
         open={openModal}
         onClose={() => setOpenModal(false)}
-        onCreated={(item) => setItems(prev => [item, ...prev])}
+        onCreated={(item) => setItems((prev) => [item, ...prev])}
       />
     </div>
   );

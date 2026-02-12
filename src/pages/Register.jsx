@@ -70,7 +70,7 @@ export default function Register() {
               <div className="flex justify-end">
                 <Button
                   type="submit"
-                  className="bg-green-600 text-white px-4 py-2"
+                  className=" bg-primary text-white px-4 py-2"
                   disabled={loading}
                 >
                   {loading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Register'}

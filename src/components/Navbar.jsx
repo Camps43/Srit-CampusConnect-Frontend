@@ -4,6 +4,7 @@ import Avatar from './ui/Avatar';
 import { useAuth } from '../contexts/AuthContext';
 import Button from './ui/Button';
 
+
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();

@@ -17,30 +17,41 @@ import Users from './pages/Users';
 
 export default function App() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen gradient-bg">
+
       <Navbar />
 
-      <main className="container px-4 py-6">
+      <main className="container mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<Register />} />
+
+          {/* Public Routes */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
+          {/* Protected Routes */}
           <Route element={<PrivateRoute />}>
+
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/clubs" element={<Clubs />} />
             <Route path="/events" element={<Events />} />
             <Route path="/notices" element={<Notices />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/profile" element={<Profile />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/lost-found" element={<LostFound />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/users" element={<Users />} />
+
+            {/* 🔥 Chat Routes */}
+            <Route path="/chat/:room" element={<Chat />} />
+
           </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+
         </Routes>
       </main>
+
     </div>
   );
 }

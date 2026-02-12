@@ -1,58 +1,185 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useSocket } from '../contexts/SocketContext'
-import API from '../services/api'
-import Card from '../components/ui/Card'
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
+import API from '../services/api';
+import Button from '../components/ui/Button';
 
-export default function Chat(){
-  const { socket } = useSocket() || {}
-  const [room, setRoom] = useState('room:global')
-  const [messages, setMessages] = useState([])
-  const [text, setText] = useState('')
-  const endRef = useRef(null)
+export default function Chat() {
+  const { room } = useParams();
+  const { user } = useAuth();
+  const socket = useSocket();
 
-  useEffect(()=> {
-    if (!socket) return
-    socket.emit('join-room', room)
-    socket.on('message:new', (m) => setMessages(prev => [...prev, m]))
-    return ()=> { socket.off('message:new'); socket.emit('leave-room', room) }
-  }, [socket, room])
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState('');
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingUser, setTypingUser] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
-  useEffect(()=> { API.get(`/messages/${room}`).then(r=>setMessages(r.data)).catch(()=>{}) },[room])
+  const messagesEndRef = useRef(null);
 
-  const send = () => {
-    if (!text.trim() || !socket) return
-    socket.emit('message', { room, text })
-    setText('')
-  }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
-  useEffect(()=> endRef.current?.scrollIntoView({behavior:'smooth'}), [messages])
+  // Load messages
+  useEffect(() => {
+    if (!room) return;
+
+    async function loadMessages() {
+      try {
+        const res = await API.get(`/messages/${room}`);
+        setMessages(res.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    loadMessages();
+  }, [room]);
+
+  // Socket listeners
+  useEffect(() => {
+    if (!socket || !room) return;
+
+    socket.emit('join-room', room);
+
+    const handleNewMessage = (msg) => {
+      if (msg.room === room) {
+        setMessages((prev) => [...prev, msg]);
+      }
+    };
+
+    const handleOnlineUsers = (users) => {
+      setOnlineUsers(users);
+    };
+
+    const handleTyping = (data) => {
+      if (data.userId !== user?._id) {
+        setTypingUser(data.name);
+        setTimeout(() => setTypingUser(null), 2000);
+      }
+    };
+
+    socket.on('message:new', handleNewMessage);
+    socket.on('online-users', handleOnlineUsers);
+    socket.on('user-typing', handleTyping);
+
+    return () => {
+      socket.emit('leave-room', room);
+      socket.off('message:new', handleNewMessage);
+      socket.off('online-users', handleOnlineUsers);
+      socket.off('user-typing', handleTyping);
+    };
+  }, [socket, room, user]);
+
+  useEffect(scrollToBottom, [messages]);
+
+  const sendMessage = () => {
+    if (!socket || !text.trim()) return;
+
+    socket.emit('message', {
+      room,
+      text,
+      meta: replyingTo ? { replyTo: replyingTo._id } : {},
+    });
+
+    setText('');
+    setReplyingTo(null);
+  };
 
   return (
-    <Card>
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-medium">Chat — {room}</h3>
-        <select value={room} onChange={e=>setRoom(e.target.value)} className="px-2 py-1 border rounded">
-          <option value="room:global">Global</option>
-          <option value="room:club:general">Club General</option>
-        </select>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+
+      {/* Header */}
+      <div className="border-b p-4 bg-white flex justify-between items-center">
+        <h2 className="text-xl font-semibold">
+          {room === 'general'
+            ? '# General Campus Chat'
+            : `# ${room}`}
+        </h2>
+
+        <div className="flex items-center gap-2 text-sm text-green-600">
+          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+          {onlineUsers.length} online
+        </div>
       </div>
 
-      <div className="flex flex-col h-96">
-        <div className="overflow-auto flex-1 space-y-2 mb-3">
-          {messages.map((m, i) => (
-            <div key={i} className="p-2 rounded-md bg-gray-100 w-fit">
-              <div className="text-xs text-gray-500">{m.from?.name || 'Anon'}</div>
-              <div className="text-sm">{m.text}</div>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((msg) => (
+          <div
+            key={msg._id}
+            className={`max-w-lg p-3 rounded-lg ${
+              msg.from?._id === user?._id
+                ? 'ml-auto bg-primary text-white'
+                : 'bg-white border'
+            }`}
+          >
+            <div className="text-xs font-semibold mb-1">
+              {msg.from?.name} ({msg.from?.role})
             </div>
-          ))}
-          <div ref={endRef} />
-        </div>
 
-        <div className="flex gap-2">
-          <input value={text} onChange={e=>setText(e.target.value)} className="flex-1 p-2 border rounded" placeholder="Write a message..." />
-          <button onClick={send} className="bg-primary text-white px-4 py-2 rounded">Send</button>
-        </div>
+            {/* Reply Preview */}
+            {msg.replyTo && (
+              <div className="bg-gray-200 text-black text-xs p-2 mb-2 rounded">
+                <strong>{msg.replyTo.from?.name}</strong>: {msg.replyTo.text}
+              </div>
+            )}
+
+            <div>{msg.text}</div>
+
+            <div className="flex justify-between items-center mt-1">
+              <span className="text-xs opacity-70">
+                {new Date(msg.createdAt).toLocaleTimeString()}
+              </span>
+
+              <button
+                className="text-xs text-blue-500"
+                onClick={() => setReplyingTo(msg)}
+              >
+                Reply
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div ref={messagesEndRef} />
       </div>
-    </Card>
-  )
+
+      {/* Typing Indicator */}
+      {typingUser && (
+        <div className="px-4 text-sm text-gray-500">
+          {typingUser} is typing...
+        </div>
+      )}
+
+      {/* Reply Preview Bar */}
+      {replyingTo && (
+        <div className="bg-gray-100 p-2 border-l-4 border-blue-500 flex justify-between items-center text-sm">
+          <div>
+            Replying to <strong>{replyingTo.from?.name}</strong>: {replyingTo.text}
+          </div>
+          <button onClick={() => setReplyingTo(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="border-t p-4 bg-white flex gap-2">
+        <input
+          type="text"
+          className="flex-1 border rounded-lg px-3 py-2"
+          placeholder="Type your message..."
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            socket?.emit('typing', room);
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+        />
+        <Button onClick={sendMessage}>Send</Button>
+      </div>
+
+    </div>
+  );
 }
