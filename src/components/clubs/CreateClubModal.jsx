@@ -1,219 +1,159 @@
-import React, { useState, useEffect, useRef } from 'react';
-import Button from '../ui/Button';
-import API from '../../services/api';
+import { useEffect, useState } from 'react';
+import API from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import Button from '../components/ui/Button';
+import Card from '../components/ui/Card';
+import CreateClubModal from '../components/clubs/CreateClubModal';
+import ClubDetailsModal from '../components/clubs/ClubDetailsModal';
 
-export default function CreateClubModal({ onClose, onSuccess }) {
-  const [form, setForm] = useState({
-    name: '',
-    description: '',
-    category: 'Technical',
-    faculty: '',
-    clubHead: '',
-  });
+export default function Clubs() {
+  const { profile } = useAuth();
 
-  const [facultyList, setFacultyList] = useState([]);
-  const [students, setStudents] = useState([]);
-
-  const [facultyOpen, setFacultyOpen] = useState(false);
-  const [studentOpen, setStudentOpen] = useState(false);
-
-  const [facultySearch, setFacultySearch] = useState('');
-  const [studentSearch, setStudentSearch] = useState('');
-
-  const [loading, setLoading] = useState(false);
-
-  const facultyRef = useRef();
-  const studentRef = useRef();
-
-  const categories = [
-    'Technical',
-    'Cultural',
-    'Sports',
-    'Social',
-    'Academic',
-    'Other',
-  ];
+  const [clubs, setClubs] = useState([]);
+  const [selectedClub, setSelectedClub] = useState(null);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadUsers() {
-      try {
-        const res = await API.get('/users');
-        const allUsers = res.data || [];
-
-        setFacultyList(allUsers.filter(u => u.role === 'faculty'));
-        setStudents(allUsers.filter(u => u.role === 'student'));
-      } catch (err) {
-        alert('Failed to load users');
-      }
-    }
-
-    loadUsers();
+    loadClubs();
   }, []);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (facultyRef.current && !facultyRef.current.contains(e.target)) {
-        setFacultyOpen(false);
-      }
-      if (studentRef.current && !studentRef.current.contains(e.target)) {
-        setStudentOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSubmit = async () => {
-    if (!form.name || !form.description || !form.faculty || !form.clubHead) {
-      alert('Please fill all required fields');
-      return;
-    }
-
-    if (form.faculty === form.clubHead) {
-      alert('Faculty and Club Head cannot be the same person');
-      return;
-    }
-
+  async function loadClubs() {
     try {
       setLoading(true);
-      await API.post('/clubs', form);
-      alert('Club created successfully');
-      onSuccess && onSuccess();
-      onClose();
+      const res = await API.get('/clubs');
+      setClubs(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to create club');
+      console.error('Failed to load clubs', err);
+      setClubs([]);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const filteredFaculty = facultyList.filter(f =>
-    f.name.toLowerCase().includes(facultySearch.toLowerCase())
-  );
+  async function joinClub(id) {
+    try {
+      await API.post(`/clubs/${id}/join`);
+      alert('Join request sent successfully');
+      loadClubs();
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to send request');
+    }
+  }
 
-  const filteredStudents = students.filter(s =>
-    s.name.toLowerCase().includes(studentSearch.toLowerCase())
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64 text-gray-500">
+        Loading clubs...
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-[420px] rounded-xl shadow-2xl p-6 space-y-4">
+    <div className="space-y-6">
 
-        <h2 className="text-lg font-semibold">Create New Club</h2>
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Clubs</h1>
 
-        {/* Club Name */}
-        
-        <input
-          className="w-full border rounded-md px-3 py-2 text-sm"
-          placeholder="Club Name *"
-          value={form.name}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-        />
-
-        {/* Description */}
-        <textarea
-          className="w-full border rounded-md px-3 py-2 text-sm"
-          placeholder="Description *"
-          rows="3"
-          value={form.description}
-          onChange={e => setForm({ ...form, description: e.target.value })}
-        />
-
-        {/* Category */}
-        <select
-          value={form.category}
-          onChange={e => setForm({ ...form, category: e.target.value })}
-          className="w-full border rounded-md px-3 py-2 text-sm"
-        >
-          {categories.map(cat => (
-            <option key={cat}>{cat}</option>
-          ))}
-        </select>
-
-        {/* Faculty Searchable Dropdown */}
-        <div className="relative" ref={facultyRef}>
-          <div
-            onClick={() => setFacultyOpen(!facultyOpen)}
-            className="w-full border rounded-md px-3 py-2 text-sm cursor-pointer bg-white"
+        {(profile?.role === 'admin' || profile?.role === 'faculty') && (
+          <Button
+            onClick={() => setOpenCreate(true)}
+            className="bg-indigo-600 text-white"
           >
-            {form.faculty
-              ? facultyList.find(f => f._id === form.faculty)?.name
-              : "Select Faculty Incharge *"}
-          </div>
-
-          {facultyOpen && (
-            <div className="absolute z-10 bg-white border rounded-md w-full mt-1 max-h-40 overflow-y-auto shadow">
-              <input
-                className="w-full px-2 py-1 text-sm border-b"
-                placeholder="Search..."
-                value={facultySearch}
-                onChange={e => setFacultySearch(e.target.value)}
-              />
-              {filteredFaculty.map(f => (
-                <div
-                  key={f._id}
-                  className={`px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer ${
-                    f._id === form.clubHead ? "opacity-40 pointer-events-none" : ""
-                  }`}
-                  onClick={() => {
-                    setForm({ ...form, faculty: f._id });
-                    setFacultyOpen(false);
-                  }}
-                >
-                  {f.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Student Searchable Dropdown */}
-        <div className="relative" ref={studentRef}>
-          <div
-            onClick={() => setStudentOpen(!studentOpen)}
-            className="w-full border rounded-md px-3 py-2 text-sm cursor-pointer bg-white"
-          >
-            {form.clubHead
-              ? students.find(s => s._id === form.clubHead)?.name
-              : "Select Club Head (Student) *"}
-          </div>
-
-          {studentOpen && (
-            <div className="absolute z-10 bg-white border rounded-md w-full mt-1 max-h-40 overflow-y-auto shadow">
-              <input
-                className="w-full px-2 py-1 text-sm border-b"
-                placeholder="Search..."
-                value={studentSearch}
-                onChange={e => setStudentSearch(e.target.value)}
-              />
-              {filteredStudents.map(s => (
-                <div
-                  key={s._id}
-                  className={`px-3 py-2 text-sm hover:bg-gray-100 cursor-pointer ${
-                    s._id === form.faculty ? "opacity-40 pointer-events-none" : ""
-                  }`}
-                  onClick={() => {
-                    setForm({ ...form, clubHead: s._id });
-                    setStudentOpen(false);
-                  }}
-                >
-                  {s.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white"
-        >
-          {loading ? "Creating..." : "Create Club"}
-        </Button>
-
+            Create Club
+          </Button>
+        )}
       </div>
+
+      {/* EMPTY STATE */}
+      {clubs.length === 0 && (
+        <p className="text-gray-500">No clubs available.</p>
+      )}
+
+      {/* CLUB LIST */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {clubs.map(club => {
+
+          const isMember = club.members?.some(
+            m => m._id?.toString() === profile?._id?.toString()
+          );
+
+          const isPending = club.joinRequests?.some(
+            r =>
+              r.user?._id?.toString() === profile?._id?.toString() &&
+              r.status === 'pending'
+          );
+
+          return (
+            <Card key={club._id} className="p-5">
+              <h2 className="text-lg font-semibold">{club.name}</h2>
+
+              <p className="text-sm text-gray-600 mt-1">
+                {club.description}
+              </p>
+
+              <p className="text-xs text-gray-500 mt-2">
+                Head: {club.clubHead?.name || 'Not Assigned'}
+              </p>
+
+              <div className="flex gap-2 mt-4 flex-wrap">
+
+                {/* STUDENT JOIN BUTTON */}
+                {profile?.role === 'student' && !isMember && !isPending && (
+                  <Button
+                    onClick={() => joinClub(club._id)}
+                    className="bg-green-600 text-white"
+                  >
+                    Request Join
+                  </Button>
+                )}
+
+                {/* PENDING BADGE */}
+                {profile?.role === 'student' && isPending && (
+                  <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">
+                    Request Pending
+                  </span>
+                )}
+
+                {/* MEMBER BADGE */}
+                {profile?.role === 'student' && isMember && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                    Member
+                  </span>
+                )}
+
+                {/* VIEW DETAILS */}
+                
+                <Button onClick={() => setSelectedClub(club)}
+                   className="bg-white border border-indigo-500 text-indigo-600 hover:bg-indigo-50 transition"
+                  >
+                  View
+                 </Button>
+
+
+
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* MODALS */}
+      {openCreate && (
+        <CreateClubModal
+          onClose={() => setOpenCreate(false)}
+          onCreated={loadClubs}
+        />
+      )}
+
+      {selectedClub && (
+        <ClubDetailsModal
+          club={selectedClub}
+          onClose={() => setSelectedClub(null)}
+          refresh={loadClubs}
+        />
+      )}
     </div>
   );
 }
