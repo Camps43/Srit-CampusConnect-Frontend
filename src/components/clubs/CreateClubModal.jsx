@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import API from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import Button from '../components/ui/Button';
+import Button from './ui/Button';
 import Card from '../components/ui/Card';
 import CreateClubModal from '../components/clubs/CreateClubModal';
 import ClubDetailsModal from '../components/clubs/ClubDetailsModal';
