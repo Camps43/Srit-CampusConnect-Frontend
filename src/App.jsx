@@ -43,6 +43,8 @@ export default function App() {
 
             {/* 🔥 Chat Routes */}
             <Route path="/chat/:room" element={<Chat />} />
+            
+            
 
           </Route>
 
